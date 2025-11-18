@@ -53,4 +53,4 @@ with gr.Blocks(title="youtube comment analyzer") as demo:
     run_btn.click(analyze_youtube_comments, inputs=[video_url, classify], outputs=[status, download])
 
 if __name__ == "__main__":
-    demo.queue(max_size=7).launch(mcp_server=True, show_error=True)
+    demo.launch(show_error=True, mcp_server=True)
