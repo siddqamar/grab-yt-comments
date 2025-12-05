@@ -16,7 +16,6 @@ def core_analyze_youtube_comments(video_url: str, classify: bool = False):
     Core logic shared by BOTH:
       - Gradio UI
       - MCP tool
-
     Returns a dict that is JSON-serializable.
     """
     global run_count
@@ -36,7 +35,7 @@ def core_analyze_youtube_comments(video_url: str, classify: bool = False):
     if run_count >= MAX_RUNS_PER_DAY:
         return {
             "status": "error",
-            "message": "you’ve reached today’s usage limit (7 runs). please come back tomorrow 💫",
+            "message": "you've reached today's usage limit (7 runs). please come back tomorrow 💫",
             "title": None,
             "comment_count": 0,
             "comments": [],
@@ -103,12 +102,22 @@ def analyze_youtube_comments_ui(video_url: str, classify: bool):
 
 
 # --- MCP-facing function (what ChatGPT should call) ---
-def analyze_youtube_comments_mcp(video_url: str, classify: bool = False):
+@gr.mcp_tool()
+def analyze_youtube_comments(video_url: str, classify: bool = False) -> dict:
     """
-    This is the MCP tool entrypoint.
-
-    It returns the full dict with comments so ChatGPT
-    can see and process them directly.
+    Fetch and analyze YouTube comments from a video URL.
+    
+    Args:
+        video_url: The YouTube video URL to scrape comments from
+        classify: Whether to classify comments by tone (question/criticism/affirmative)
+    
+    Returns:
+        A dictionary containing:
+        - status: "ok" or "error"
+        - message: Human-readable status message
+        - title: Video title
+        - comment_count: Number of comments fetched
+        - comments: List of comment dictionaries with text, published_at, like_count, reply_count
     """
     result = core_analyze_youtube_comments(video_url, classify)
 
@@ -127,9 +136,7 @@ with gr.Blocks(title="youtube comment analyzer") as demo:
     gr.Markdown(
         """
         ## 🎥 youtube comment analyzer  
-
         paste a youtube video link below and get all comments — or analyze them by tone.
-
         > each run uses the youtube data api — limited to **7 per day** for fair use.
         """
     )
@@ -157,6 +164,4 @@ with gr.Blocks(title="youtube comment analyzer") as demo:
 
 
 if __name__ == "__main__":
-    # mcp_server=True exposes this Space as an MCP server
-    # so ChatGPT can use `analyze_youtube_comments_mcp` as a tool.
     demo.launch(show_error=True, mcp_server=True)
