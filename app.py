@@ -101,36 +101,6 @@ def analyze_youtube_comments_ui(video_url: str, classify: bool):
     return status_md, csv_path
 
 
-# --- MCP-facing function (what ChatGPT should call) ---
-@gr.mcp_tool()
-def analyze_youtube_comments(video_url: str, classify: bool = False) -> dict:
-    """
-    Fetch and analyze YouTube comments from a video URL.
-    
-    Args:
-        video_url: The YouTube video URL to scrape comments from
-        classify: Whether to classify comments by tone (question/criticism/affirmative)
-    
-    Returns:
-        A dictionary containing:
-        - status: "ok" or "error"
-        - message: Human-readable status message
-        - title: Video title
-        - comment_count: Number of comments fetched
-        - comments: List of comment dictionaries with text, published_at, like_count, reply_count
-    """
-    result = core_analyze_youtube_comments(video_url, classify)
-
-    # CSV path is irrelevant to ChatGPT; we can drop it
-    return {
-        "status": result["status"],
-        "message": result["message"],
-        "title": result["title"],
-        "comment_count": result["comment_count"],
-        "comments": result["comments"],
-    }
-
-
 # --- Gradio UI definition ---
 with gr.Blocks(title="youtube comment analyzer") as demo:
     gr.Markdown(
@@ -163,5 +133,36 @@ with gr.Blocks(title="youtube comment analyzer") as demo:
     )
 
 
+# --- MCP Tool Definition ---
+# Define the MCP tool as a simple function that Gradio will expose
+def analyze_youtube_comments(video_url: str, classify: bool = False):
+    """
+    Fetch and analyze YouTube comments from a video URL.
+    
+    Args:
+        video_url: The YouTube video URL to scrape comments from
+        classify: Whether to classify comments by tone (question/criticism/affirmative)
+    
+    Returns:
+        A dictionary containing status, message, title, comment_count, and comments list
+    """
+    result = core_analyze_youtube_comments(video_url, classify)
+
+    # Return JSON-serializable dict without csv_path
+    return {
+        "status": result["status"],
+        "message": result["message"],
+        "title": result["title"],
+        "comment_count": result["comment_count"],
+        "comments": result["comments"],
+    }
+
+
 if __name__ == "__main__":
-    demo.launch(show_error=True, mcp_server=True)
+    # When mcp_server=True, Gradio looks for standalone functions to expose as tools
+    # The function 'analyze_youtube_comments' should be automatically discovered
+    demo.launch(
+        show_error=True, 
+        mcp_server=True,
+        mcp_functions=[analyze_youtube_comments]  # Explicitly register the MCP function
+    )
