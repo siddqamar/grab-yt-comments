@@ -1,168 +1,158 @@
 import os
-import traceback
-import pandas as pd
+import json
+import csv
+import io
 import gradio as gr
-
 from scraper import scrape_comments
-from classifier import classify_comments  # you already mentioned this exists
+from classifier import classify_comments
+from dotenv import load_dotenv
 
-# --- basic rate limiting for API fairness ---
-MAX_RUNS_PER_DAY = 7
-run_count = 0
+load_dotenv()
 
-
-def core_analyze_youtube_comments(video_url: str, classify: bool = False):
+def process_youtube_video(
+    youtube_url: str,
+    enable_classification: bool,
+    output_format: str
+):
     """
-    Core logic shared by BOTH:
-      - Gradio UI
-      - MCP tool
-    Returns a dict that is JSON-serializable.
+    Main processing function that:
+    1. Scrapes YouTube comments
+    2. Optionally classifies them
+    3. Returns results in selected format
     """
-    global run_count
-
-    api_key = os.getenv("YOUTUBE_API_KEY")
-
-    if not api_key:
-        return {
-            "status": "error",
-            "message": "missing youtube api key — set `YOUTUBE_API_KEY` in your Space secrets",
-            "title": None,
-            "comment_count": 0,
-            "comments": [],
-            "csv_path": None,
-        }
-
-    if run_count >= MAX_RUNS_PER_DAY:
-        return {
-            "status": "error",
-            "message": "you've reached today's usage limit (7 runs). please come back tomorrow 💫",
-            "title": None,
-            "comment_count": 0,
-            "comments": [],
-            "csv_path": None,
-        }
-
     try:
-        # uses your scraper.py
-        title, comments = scrape_comments(api_key, video_url)
-        df = pd.DataFrame(comments)
-
-        # optional classification
-        if classify:
-            # this assumes classify_comments returns a DataFrame aligned with the texts
-            classified_df = classify_comments(df["text"].to_list())
-            # if it returns a DataFrame, use that; if it returns list[dict], adjust accordingly
-            df = pd.DataFrame(classified_df)
-
-        # CSV for the UI download
-        safe_title = "".join(c for c in title if c.isalnum() or c in (" ", "-", "_")).rstrip()
-        csv_path = f"{safe_title or 'youtube_comments'}.csv"
-        df.to_csv(csv_path, index=False)
-
-        run_count += 1
-
-        return {
-            "status": "ok",
-            "message": f"successfully fetched {len(df)} comments from **{title}**",
-            "title": title,
-            "comment_count": len(df),
-            "comments": df.to_dict(orient="records"),  # <-- this is what ChatGPT will actually use
-            "csv_path": csv_path,
-        }
-
-    except Exception as e:
-        err = str(e).lower()
-        if "quota" in err or "403" in err or "429" in err:
-            msg = "sadly, the youtube api quota for the day is used up. please come back tomorrow 💫"
+        # Validate inputs
+        if not youtube_url or not youtube_url.strip():
+            return None, None, "Error: Please provide a valid YouTube URL"
+        
+        # Get API key from environment
+        api_key = os.getenv("YOUTUBE_API_KEY")
+        if not api_key:
+            return None, None, "Error: YOUTUBE_API_KEY environment variable not set"
+        
+        # Step 1: Scrape comments
+        try:
+            title, comments = scrape_comments(api_key, youtube_url.strip())
+        except ValueError as e:
+            return None, None, f"Error: Invalid YouTube URL - {str(e)}"
+        except Exception as e:
+            return None, None, f"Error scraping comments: {str(e)}"
+        
+        if not comments:
+            return None, None, "No comments found for this video"
+        
+        # Step 2: Optionally classify comments
+        if enable_classification:
+            try:
+                # Pass JSON (list of dicts) to classifier
+                classified_df = classify_comments(comments)
+                # Convert back to list of dicts with label field
+                results = classified_df.to_dict('records')
+                # Normalize category names to match spec
+                for item in results:
+                    category = item.get('category', 'other').lower()
+                    if category == 'question':
+                        item['label'] = 'Question'
+                    elif category == 'criticism':
+                        item['label'] = 'Criticism'
+                    elif category in ('affirmative', 'affirmation'):
+                        item['label'] = 'Affirmation'
+                    else:
+                        item['label'] = 'Other'
+                    # Remove old category field
+                    item.pop('category', None)
+            except Exception as e:
+                return None, None, f"Error during classification: {str(e)}"
         else:
-            msg = f"something went wrong: {e}"
+            results = comments
+        
+        # Step 3: Format output
+        if output_format == "JSON":
+            json_output = json.dumps(results, indent=2)
+            return json_output, None, f"Success: Scraped {len(results)} comments from '{title}'"
+        
+        elif output_format == "CSV":
+            # Convert to CSV
+            output = io.StringIO()
+            if results:
+                fieldnames = list(results[0].keys())
+                writer = csv.DictWriter(output, fieldnames=fieldnames)
+                writer.writeheader()
+                writer.writerows(results)
+            
+            csv_content = output.getvalue()
+            
+            # Create temporary file for download
+            filename = f"{title.replace(' ', '_')}_comments.csv"
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(csv_content)
+            
+            return None, filename, f"Success: Scraped {len(results)} comments from '{title}'. CSV ready for download."
+        
+        else:
+            return None, None, "Error: Invalid output format selected"
+            
+    except Exception as e:
+        return None, None, f"Unexpected error: {str(e)}"
 
-        traceback.print_exc()
-
-        return {
-            "status": "error",
-            "message": msg,
-            "title": None,
-            "comment_count": 0,
-            "comments": [],
-            "csv_path": None,
-        }
-
-
-# --- Gradio-facing function (what the button calls) ---
-def analyze_youtube_comments_ui(video_url: str, classify: bool):
+def create_ui():
     """
-    This is ONLY for the Gradio UI.
-    It maps the core dict -> (status markdown, file path).
+    Create Gradio UI with required components
     """
-    result = core_analyze_youtube_comments(video_url, classify)
-    status_md = result["message"]
-    csv_path = result["csv_path"]
-    return status_md, csv_path
-
-
-# --- Gradio UI definition ---
-with gr.Blocks(title="youtube comment analyzer") as demo:
-    gr.Markdown(
-        """
-        ## 🎥 youtube comment analyzer  
-        paste a youtube video link below and get all comments — or analyze them by tone.
-        > each run uses the youtube data api — limited to **7 per day** for fair use.
-        """
-    )
-
-    with gr.Row():
-        video_url = gr.Textbox(
-            label="youtube video url",
-            placeholder="paste video link here...",
+    with gr.Blocks(title="YouTube Comments Scraper") as app:
+        gr.Markdown("# YouTube Comments Scraper + Optional Classifier")
+        gr.Markdown("Scrape YouTube comments and optionally classify them into categories.")
+        
+        with gr.Row():
+            with gr.Column():
+                url_input = gr.Textbox(
+                    label="YouTube Video URL",
+                    placeholder="https://www.youtube.com/watch?v=...",
+                    lines=1
+                )
+                
+                classify_checkbox = gr.Checkbox(
+                    label="Enable classification",
+                    value=False,
+                    info="Classify comments into: Question, Criticism, Affirmation, Other"
+                )
+                
+                format_dropdown = gr.Dropdown(
+                    choices=["JSON", "CSV"],
+                    label="Output format",
+                    value="JSON"
+                )
+                
+                run_button = gr.Button("Run", variant="primary")
+        
+        with gr.Row():
+            with gr.Column():
+                json_output = gr.JSON(
+                    label="JSON Preview",
+                    visible=True
+                )
+                
+                file_output = gr.File(
+                    label="Download CSV",
+                    visible=True
+                )
+                
+                status_output = gr.Textbox(
+                    label="Status / Messages",
+                    lines=3,
+                    interactive=False
+                )
+        
+        # Wire up the button
+        run_button.click(
+            fn=process_youtube_video,
+            inputs=[url_input, classify_checkbox, format_dropdown],
+            outputs=[json_output, file_output, status_output]
         )
-        classify = gr.Checkbox(
-            label="classify comments (question / criticism / affirmative)",
-            value=False,
-        )
-
-    run_btn = gr.Button("fetch comments")
-    status = gr.Markdown()
-    download = gr.File(label="download csv")
-
-    # connect UI -> core
-    run_btn.click(
-        fn=analyze_youtube_comments_ui,
-        inputs=[video_url, classify],
-        outputs=[status, download],
-    )
-
-
-# --- MCP Tool Definition ---
-# Define the MCP tool as a simple function that Gradio will expose
-def analyze_youtube_comments(video_url: str, classify: bool = False):
-    """
-    Fetch and analyze YouTube comments from a video URL.
     
-    Args:
-        video_url: The YouTube video URL to scrape comments from
-        classify: Whether to classify comments by tone (question/criticism/affirmative)
-    
-    Returns:
-        A dictionary containing status, message, title, comment_count, and comments list
-    """
-    result = core_analyze_youtube_comments(video_url, classify)
-
-    # Return JSON-serializable dict without csv_path
-    return {
-        "status": result["status"],
-        "message": result["message"],
-        "title": result["title"],
-        "comment_count": result["comment_count"],
-        "comments": result["comments"],
-    }
-
+    return app
 
 if __name__ == "__main__":
-    # When mcp_server=True, Gradio looks for standalone functions to expose as tools
-    # The function 'analyze_youtube_comments' should be automatically discovered
-    demo.launch(
-        show_error=True, 
-        mcp_server=True,
-        mcp_functions=[analyze_youtube_comments]  # Explicitly register the MCP function
-    )
+    app = create_ui()
+    # Launch with MCP server enabled as per AGENTS.md requirement
+    app.launch(mcp_server=True, share=False)
