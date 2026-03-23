@@ -1,16 +1,16 @@
-# 🎥 Grab YT Comments: Scrape & Classify with Ease
+# Grab YT Comments: Scrape & Classify with Ease
 
 Ever felt overwhelmed by thousands of comments on a YouTube video? Whether you're a content creator trying to find genuine questions, a founder looking for product feedback, or just a curious soul, **Grab YT Comments** is here to do the heavy lifting for you.
 
 ---
 
-## 🚀 Live Demo
+## Live Demo
 Want to try it out without installing anything? 
-**[Click here to visit the live demo on Hugging Face!](###)**
+**[Click here to visit the live demo on Hugging Face!](https://huggingface.co/spaces/siddqamar/grab-yt-comments)**
 
 ---
 
-## ✨ Why You’ll Love This
+## Why You’ll Love This
 
 Manual scrolling is a thing of the past. Here is how this tool makes your life easier:
 
@@ -21,7 +21,7 @@ Manual scrolling is a thing of the past. Here is how this tool makes your life e
 
 ---
 
-## 🛠️ Project Structure
+## Project Structure
 
 Here is a quick look at how the magic happens:
 
@@ -36,12 +36,12 @@ grab-yt-comments/
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Clone the Repository
 First, grab the code and move into the project folder:
 ```bash
-git clone https://github.com/your-username/grab-yt-comments.git
+git clone https://github.com/siddqamar/grab-yt-comments.git
 cd grab-yt-comments
 ```
 
