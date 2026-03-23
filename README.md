@@ -1,0 +1,103 @@
+# 🎥 Grab YT Comments: Scrape & Classify with Ease
+
+Ever felt overwhelmed by thousands of comments on a YouTube video? Whether you're a content creator trying to find genuine questions, a founder looking for product feedback, or just a curious soul, **Grab YT Comments** is here to do the heavy lifting for you.
+
+---
+
+## 🚀 Live Demo
+Want to try it out without installing anything? 
+**[Click here to visit the live demo on Hugging Face!](###)**
+
+---
+
+## ✨ Why You’ll Love This
+
+Manual scrolling is a thing of the past. Here is how this tool makes your life easier:
+
+*   **Audience Insights in Seconds:** Instantly see what people are asking or complaining about without reading every single "First!" comment.
+*   **Market Research & Feedback:** Perfect for founders and marketers to gather raw, unfiltered feedback from competitors' videos or their own.
+*   **Ready-to-Use Data:** Export everything to **CSV** or **JSON**. Feed it into your favorite spreadsheet or another tool for deeper analysis.
+*   **Simple & Human:** No complex terminal commands needed once it's running. The clean interface makes it easy for anyone to use.
+
+---
+
+## 🛠️ Project Structure
+
+Here is a quick look at how the magic happens:
+
+```text
+grab-yt-comments/
+├── app.py              # The heart of the app (UI & main logic)
+├── scraper.py          # The engine that talks to YouTube
+├── classifier.py       # The brain that categorizes your comments
+├── requirements.txt    # The "ingredients" list for the app
+└── .env                # Your secret vault (for the API key)
+```
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
+First, grab the code and move into the project folder:
+```bash
+git clone https://github.com/your-username/grab-yt-comments.git
+cd grab-yt-comments
+```
+
+### 2. Set Up a Virtual Environment (Recommended)
+It's always a best practice to keep your project isolated. Run these commands:
+
+**On Windows:**
+```bash
+python -m venv venv
+.\venv\Scripts\activate
+```
+
+**On macOS/Linux:**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install Dependencies
+Once your environment is active, install the required tools:
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Get Your YouTube API Key
+To talk to YouTube, you need a "key." It’s free and takes about 2 minutes:
+1.  Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2.  Create a new project (call it "YT Scraper").
+3.  Search for **"YouTube Data API v3"** and click **Enable**.
+4.  Go to the **Credentials** tab on the left.
+5.  Click **+ Create Credentials** > **API Key**.
+6.  Copy that key!
+
+### 5. Setup Your Environment
+Create a file named `.env` in the root folder and paste your key there:
+```text
+YOUTUBE_API_KEY=your_copied_api_key_here
+```
+
+### 6. Launch the App
+Now, just run:
+```bash
+python app.py
+```
+A link will appear in your terminal. Open it in your browser, paste a YouTube URL, and you're good to go!
+
+---
+
+## 💡 Pro Tips
+*   **Shorts Work Too!** Just paste the URL of a YouTube Short, and it works exactly the same.
+*   **Classification:** If you enable this, the tool uses `TextBlob` to guess the sentiment. It's not perfect (it's AI, after all!), but it's a massive head start for organizing feedback.
+
+---
+
+## ⚖️ License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+*Built for creators, researchers, and anyone who values their time.* 🚀
