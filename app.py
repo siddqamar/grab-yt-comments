@@ -57,6 +57,10 @@ def process_youtube_video(
                         item['label'] = 'Criticism'
                     elif category in ('affirmative', 'affirmation'):
                         item['label'] = 'Affirmation'
+                    elif category == 'negative':
+                        item['label'] = 'Negative'
+                    elif category == 'neutral':
+                        item['label'] = 'Neutral'
                     else:
                         item['label'] = 'Other'
                     # Remove old category field
@@ -114,7 +118,7 @@ def create_ui():
                 classify_checkbox = gr.Checkbox(
                     label="Enable classification",
                     value=False,
-                    info="Classify comments into: Question, Criticism, Affirmation, Other"
+                    info="Classify comments into: Question, Criticism, Affirmation, Negative, Neutral, Other"
                 )
                 
                 format_dropdown = gr.Dropdown(
