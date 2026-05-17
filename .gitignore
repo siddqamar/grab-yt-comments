@@ -5,3 +5,5 @@ myenv/
 AGENTS.md
 *.csv
 *.json
+*.sqlite3
+outputs/

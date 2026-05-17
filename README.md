@@ -30,7 +30,8 @@ grab-yt-comments/
 ├── app.py              # The heart of the app (UI & main logic)
 ├── scraper.py          # The engine that talks to YouTube
 ├── classifier.py       # The brain that categorizes your comments
-├── requirements.txt    # The "ingredients" list for the app
+├── pyproject.toml      # Project dependencies for uv
+├── requirements.txt    # Compatibility dependency list for older deploy flows
 └── .env                # Your secret vault (for the API key)
 ```
 
@@ -45,26 +46,26 @@ git clone https://github.com/siddqamar/grab-yt-comments.git
 cd grab-yt-comments
 ```
 
-### 2. Set Up a Virtual Environment (Recommended)
-It's always a best practice to keep your project isolated. Run these commands:
+### 2. Install uv
+This project is set up for [`uv`](https://docs.astral.sh/uv/), which is much faster than plain `pip`.
 
 **On Windows:**
 ```bash
-python -m venv venv
-.\venv\Scripts\activate
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 ```
 
 **On macOS/Linux:**
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
 ### 3. Install Dependencies
-Once your environment is active, install the required tools:
+From the project folder, run:
 ```bash
-pip install -r requirements.txt
+uv sync
 ```
+
+`uv` will create and manage the local `.venv` automatically.
 
 ### 4. Get Your YouTube API Key
 To talk to YouTube, you need a "key." It’s free and takes about 2 minutes:
@@ -84,7 +85,7 @@ YOUTUBE_API_KEY=your_copied_api_key_here
 ### 6. Launch the App
 Now, just run:
 ```bash
-python app.py
+uv run python app.py
 ```
 A link will appear in your terminal. Open it in your browser, paste a YouTube URL, and you're good to go!
 
@@ -92,7 +93,7 @@ A link will appear in your terminal. Open it in your browser, paste a YouTube UR
 
 ## 💡 Pro Tips
 *   **Shorts Work Too!** Just paste the URL of a YouTube Short, and it works exactly the same.
-*   **Classification:** If you enable this, the tool uses `TextBlob` to guess the sentiment. It's not perfect (it's AI, after all!), but it's a massive head start for organizing feedback.
+*   **Classification:** If you enable this, the tool uses your local OpenAI-compatible LLM endpoint to classify comments as `Question`, `Criticism`, `Affirmation`, or `Other`. Results are cached in a small local SQLite database so repeated comments do not need to be classified again.
 
 ---
 
