@@ -44,6 +44,7 @@ def process_youtube_video(
     youtube_url: str,
     enable_classification: bool,
     output_format: str,
+    progress=gr.Progress(track_tqdm=False),
 ):
     """
     Scrape YouTube comments, optionally classify them, and export JSON or CSV.
@@ -57,6 +58,7 @@ def process_youtube_video(
             return None, None, "Error: YOUTUBE_API_KEY environment variable not set"
 
         try:
+            progress(0.05, desc="Fetching YouTube comments")
             title, comments = scrape_comments(api_key, youtube_url.strip())
         except ValueError as exc:
             return None, None, f"Error: Invalid YouTube URL - {exc}"
@@ -68,18 +70,26 @@ def process_youtube_video(
 
         if enable_classification:
             try:
-                results = classify_comments(comments)
+                def update_classification_progress(done: int, total: int, message: str) -> None:
+                    fraction = 0.15 + (0.75 * done / max(total, 1))
+                    progress(fraction, desc=message)
+
+                progress(0.1, desc=f"Preparing {len(comments)} comments for classification")
+                results = classify_comments(comments, progress_callback=update_classification_progress)
             except Exception as exc:
                 return None, None, f"Error during classification: {exc}"
         else:
             results = comments
 
+        progress(0.92, desc=f"Writing {output_format} output")
         if output_format == "JSON":
             json_path = _write_json_file(title, results)
+            progress(1.0, desc="Done")
             return results, json_path, f"Success: Scraped {len(results)} comments from '{title}'. JSON ready."
 
         if output_format == "CSV":
             csv_path = _write_csv_file(title, results)
+            progress(1.0, desc="Done")
             return results, csv_path, f"Success: Scraped {len(results)} comments from '{title}'. CSV ready."
 
         return None, None, "Error: Invalid output format selected"
