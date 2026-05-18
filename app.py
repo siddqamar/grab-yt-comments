@@ -117,7 +117,10 @@ def create_ui():
                 classify_checkbox = gr.Checkbox(
                     label="Enable classification",
                     value=False,
-                    info="Classify comments into: Question, Criticism, Affirmation, Other",
+                    info=(
+                        "Classify comments into: appreciation, humor, questions, criticism, "
+                        "personal experience, feedback, spam"
+                    ),
                 )
 
                 format_dropdown = gr.Dropdown(

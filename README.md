@@ -93,9 +93,9 @@ A link will appear in your terminal. Open it in your browser, paste a YouTube UR
 
 ## 💡 Pro Tips
 *   **Shorts Work Too!** Just paste the URL of a YouTube Short, and it works exactly the same.
-*   **Classification:** If you enable this, the tool uses your local OpenAI-compatible LLM endpoint to classify comments as `Question`, `Criticism`, `Affirmation`, or `Other`. Results are cached in a small local SQLite database so repeated comments do not need to be classified again.
-*   **Classification Speed:** The classifier clears the current scraped-comments table on each run, stores the fresh comments first, resolves cached and unmistakable labels immediately, then sends nuanced comments to the local LLM in batches. You can tune this with `CLASSIFICATION_BATCH_SIZE` and `CLASSIFICATION_REQUEST_TIMEOUT`.
-*   **Fresh Reclassification:** By default, cached labels are reused for speed. Set `CLASSIFICATION_CLEAR_CACHE_ON_RUN=true` before launching if you want every run to wipe cached labels and classify from scratch.
+*   **Classification:** If you enable this, the tool uses your local OpenAI-compatible LLM endpoint to classify comments as `appreciation`, `humor`, `questions`, `criticism`, `personal experience`, `feedback`, or `spam`.
+*   **Database-backed Results:** The classifier stores the scraped comments first, classifies each saved comment one by one with the LLM, writes labels back to SQLite, and returns the final result from the database.
+*   **Classification Timeout:** Tune the LLM request timeout with `CLASSIFICATION_REQUEST_TIMEOUT`.
 
 ---
 
