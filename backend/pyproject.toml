@@ -5,9 +5,11 @@ description = "Scrape YouTube comments with the official API and optionally clas
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "fastapi>=0.110.0",
     "gradio>=4.0.0",
     "python-dotenv",
     "requests>=2.31.0",
+    "uvicorn>=0.29.0",
 ]
 
 [tool.uv]
