@@ -1,7 +1,46 @@
-__pycache__/
-myenv/
-.venv/
+# node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# env files
 .env
+.env.*
+docker-compose.env
+.venv/
+
+# python (if backend uses it)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
 AGENTS.md
-*.csv
-*.json
+
+# logs
+logs/
+*.log
+
+# docker
+*.pid
+*.seed
+
+# build / dist
+dist/
+build/
+.next/
+out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/
+
+# misc
+coverage/
+.cache/

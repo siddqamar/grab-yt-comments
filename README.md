@@ -1,103 +1,128 @@
-# Grab YT Comments: Scrape & Classify with Ease
+# Grab YT Comments
 
-Ever felt overwhelmed by thousands of comments on a YouTube video? Whether you're a content creator trying to find genuine questions, a founder looking for product feedback, or just a curious soul, **Grab YT Comments** is here to do the heavy lifting for you.
-
----
-
-## Live Demo
-Want to try it out without installing anything? 
-**[Click here to visit the live demo on Hugging Face!](https://huggingface.co/spaces/siddqamar/grab-yt-comments)**
-
----
-
-## Why You’ll Love This
-
-Manual scrolling is a thing of the past. Here is how this tool makes your life easier:
-
-*   **Audience Insights in Seconds:** Instantly see what people are asking or complaining about without reading every single "First!" comment.
-*   **Market Research & Feedback:** Perfect for founders and marketers to gather raw, unfiltered feedback from competitors' videos or their own.
-*   **Ready-to-Use Data:** Export everything to **CSV** or **JSON**. Feed it into your favorite spreadsheet or another tool for deeper analysis.
-*   **Simple & Human:** No complex terminal commands needed once it's running. The clean interface makes it easy for anyone to use.
-
----
+This helps you read YouTube comments without drowning in the noise.
+It extracts comments from any video URL and classifies them locally with **LFM2.5-350M**, giving you a clear dashboard of what people are asking, praising, criticizing, joking about, or pushing back on.
 
 ## Project Structure
 
-Here is a quick look at how the magic happens:
-
 ```text
 grab-yt-comments/
-├── app.py              # The heart of the app (UI & main logic)
-├── scraper.py          # The engine that talks to YouTube
-├── classifier.py       # The brain that categorizes your comments
-├── requirements.txt    # The "ingredients" list for the app
-└── .env                # Your secret vault (for the API key)
+|-- backend/
+|   |-- api.py              # FastAPI API for the React frontend
+|   |-- app.py              # Existing Gradio UI entrypoint
+|   |-- scraper.py          # YouTube Data API comment scraping
+|   |-- classifier.py       # LLM classification and SQLite persistence
+|   |-- pyproject.toml      # Backend dependencies for uv
+|   |-- requirements.txt    # Backend dependencies for pip-style deploys
+|   |-- uv.lock
+|   `-- .gitignore
+|-- frontend/
+|   |-- App.tsx
+|   |-- services/
+|   |-- components/
+|   |-- package.json
+|   `-- .gitignore
+|-- .gitignore
+|-- LICENSE
+`-- README.md
 ```
 
----
+## Prerequisite:
 
-## Getting Started
+<details>
+<summary><strong>Local LLM must be running</strong></summary>
 
-### 1. Clone the Repository
-First, grab the code and move into the project folder:
+Classification depends on a local OpenAI-compatible LLM server. Before running this project, install and start **LFM2.5-350M** with `llama.cpp`.
+
+1. Install `llama.cpp`:
+
 ```bash
-git clone https://github.com/siddqamar/grab-yt-comments.git
-cd grab-yt-comments
+winget install llama.cpp
 ```
 
-### 2. Set Up a Virtual Environment (Recommended)
-It's always a best practice to keep your project isolated. Run these commands:
+2. Start the model server:
 
-**On Windows:**
 ```bash
-python -m venv venv
-.\venv\Scripts\activate
+llama-server -hf LiquidAI/LFM2.5-350M-GGUF:Q4_K_M
 ```
 
-**On macOS/Linux:**
+Once started, the server is available at `http://localhost:8080`.
+
+</details> ```
+
+## Backend Setup
+
+From the repo root:
+
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+cd backend
+uv sync
 ```
 
-### 3. Install Dependencies
-Once your environment is active, install the required tools:
-```bash
-pip install -r requirements.txt
-```
+Create `backend/.env`:
 
-### 4. Get Your YouTube API Key
-To talk to YouTube, you need a "key." It’s free and takes about 2 minutes:
-1.  Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2.  Create a new project (call it "YT Scraper").
-3.  Search for **"YouTube Data API v3"** and click **Enable**.
-4.  Go to the **Credentials** tab on the left.
-5.  Click **+ Create Credentials** > **API Key**.
-6.  Copy that key!
-
-### 5. Setup Your Environment
-Create a file named `.env` in the root folder and paste your key there:
 ```text
-YOUTUBE_API_KEY=your_copied_api_key_here
+YOUTUBE_API_KEY=your_youtube_api_key_here
 ```
 
-### 6. Launch the App
-Now, just run:
+Local LLM settings:
+
+```text
+LOCAL_LLM_URL=http://127.0.0.1:8080/v1/chat/completions
+LOCAL_LLM_MODEL=LiquidAI/LFM2.5-350M-GGUF:Q4_K_M
+CLASSIFICATION_REQUEST_TIMEOUT=30
+```
+
+## Run The App
+
+Start the FastAPI backend:
+
 ```bash
-python app.py
+cd backend
+uv run python -m uvicorn api:app --host 127.0.0.1 --port 8000 --reload
 ```
-A link will appear in your terminal. Open it in your browser, paste a YouTube URL, and you're good to go!
 
----
+In a second terminal, start the React frontend:
 
-## 💡 Pro Tips
-*   **Shorts Work Too!** Just paste the URL of a YouTube Short, and it works exactly the same.
-*   **Classification:** If you enable this, the tool uses `TextBlob` to guess the sentiment. It's not perfect (it's AI, after all!), but it's a massive head start for organizing feedback.
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
----
+Open the frontend:
 
-## ⚖️ License
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+```text
+http://127.0.0.1:3000
+```
 
----
-*Built for creators, researchers, and anyone who values their time.* 🚀
+The frontend calls the backend at:
+
+```text
+http://localhost:8000/api/v1/comments
+```
+
+You can override that by setting `VITE_API_URL` in `frontend/.env`.
+
+## Existing Gradio App
+
+The original Gradio workflow is still available:
+
+```bash
+cd backend
+uv run python app.py
+```
+
+## Classification Labels
+
+When classification is enabled, comments are classified with the local OpenAI-compatible LLM endpoint into:
+
+- `appreciation`
+- `humor`
+- `questions`
+- `criticism`
+- `personal experience`
+- `feedback`
+- `spam`
+
+The backend stores scraped comments first, classifies each saved comment, writes labels back to SQLite, and returns the final result from the database.
