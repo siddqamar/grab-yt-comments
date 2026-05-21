@@ -3,17 +3,25 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import time
 from typing import Any, Callable
 
 import requests
 
 session = requests.Session()
+model_request_lock = threading.Lock()
 
 MODEL_NAME = os.getenv("LOCAL_LLM_MODEL", "LiquidAI/LFM2.5-350M-GGUF:Q4_K_M")
 URL = os.getenv("LOCAL_LLM_URL", "http://127.0.0.1:8080/v1/chat/completions")
 DB_PATH = os.getenv("CLASSIFICATION_DB_PATH", ".classification_cache.sqlite3")
 REQUEST_TIMEOUT = int(os.getenv("CLASSIFICATION_REQUEST_TIMEOUT", "30"))
+CLASSIFICATION_BATCH_SIZE = max(
+    1,
+    min(15, int(os.getenv("CLASSIFICATION_BATCH_SIZE", "12"))),
+)
+CLASSIFICATION_MAX_RETRIES = max(1, int(os.getenv("CLASSIFICATION_MAX_RETRIES", "3")))
+CLASSIFICATION_BATCH_PAUSE = float(os.getenv("CLASSIFICATION_BATCH_PAUSE", "0.25"))
 
 LABELS = (
     "appreciation",
@@ -152,6 +160,20 @@ def _save_cached_label(
     )
 
 
+def _get_cached_label(conn: sqlite3.Connection, comment: str) -> tuple[str, str | None] | None:
+    row = conn.execute(
+        """
+        SELECT label, raw_response
+        FROM classification_cache
+        WHERE comment_hash = ?
+        """,
+        (_cache_key(comment),),
+    ).fetchone()
+    if not row:
+        return None
+    return _normalize_label(str(row["label"])), row["raw_response"]
+
+
 def _save_comment_label(
     conn: sqlite3.Connection,
     comment_hash: str,
@@ -225,24 +247,6 @@ Allowed labels:
 - feedback: gives a suggestion, feature request, constructive advice, or improvement idea.
 - spam: clear scam, bot text, unrelated promotion, repeated junk, suspicious link, fake giveaway, or self-promotion.
 
-Rules:
-- Return valid JSON only.
-- Use exactly one of the allowed labels.
-- Mark spam only when the comment is clearly promotional, deceptive, unrelated junk, or bot-like.
-- Do not mark a short genuine comment, emoji, joke, praise, or simple question as spam just because it is short.
-- If a comment mixes labels, use this priority: spam when clearly spam, then questions, criticism, feedback, personal experience, appreciation, humor.
-- Do not include explanations.
-
-Examples:
-- "Can you show a full deployment example?" -> questions
-- "Great video, but can you explain the setup step?" -> questions
-- "This part was confusing and missed the main issue." -> criticism
-- "You should add a section on pricing." -> feedback
-- "Thank you, this finally made agents click for me." -> appreciation
-- "I tried this at work and it saved our support team hours." -> personal experience
-- "The editor really said speedrun debugging." -> humor
-- "Make $5000 today, visit my channel now!!!" -> spam
-
 Return shape:
 {{"label":"questions"}}
 
@@ -268,7 +272,56 @@ Comment:
     }
 
 
-def _extract_json(raw_response: str) -> dict[str, Any]:
+def _build_batch_payload(comment_texts: list[str]) -> dict[str, Any]:
+    comments = [
+        {"id": f"c{index}", "text": text}
+        for index, text in enumerate(comment_texts)
+    ]
+    prompt = f"""
+You are analyzing YouTube comments for creator and product decision-making.
+Your job is to sort each audience comment into one useful action bucket.
+
+Classify every comment into exactly one label.
+
+Allowed labels:
+- appreciation: praise, thanks, agreement, encouragement, or saying the content helped.
+- humor: jokes, memes, playful remarks, or light sarcasm meant mainly to entertain.
+- questions: asks for information, help, clarification, a tutorial, an example, or a future topic.
+- criticism: complains, disagrees, reports a problem, expresses confusion, or gives negative judgment.
+- personal experience: shares a first-person story, outcome, use case, or lived experience.
+- feedback: gives a suggestion, feature request, constructive advice, or improvement idea.
+- spam: clear scam, bot text, unrelated promotion, repeated junk, suspicious link, fake giveaway, or self-promotion.
+
+Return valid JSON only.
+Return one result for every input comment using the exact same id.
+Do not include explanations.
+
+Return shape:
+{{"results":[{{"id":"c0","label":"questions"}}]}}
+
+Comments:
+{json.dumps(comments, ensure_ascii=False)}
+""".strip()
+
+    return {
+        "model": MODEL_NAME,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a senior audience-insights analyst for YouTube creators and product teams. "
+                    "Classify batches of comments by actionable intent. Return JSON only."
+                ),
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": 0,
+        "max_tokens": max(96, 32 * len(comment_texts)),
+        "stream": False,
+    }
+
+
+def _extract_json(raw_response: str) -> Any:
     try:
         return json.loads(raw_response)
     except json.JSONDecodeError:
@@ -278,9 +331,32 @@ def _extract_json(raw_response: str) -> dict[str, Any]:
         return json.loads(match.group(0))
 
 
+def _post_with_retries(payload: dict[str, Any]) -> requests.Response:
+    retry_statuses = {429, 500, 502, 503, 504}
+    last_error: Exception | None = None
+
+    for attempt in range(CLASSIFICATION_MAX_RETRIES):
+        try:
+            with model_request_lock:
+                response = session.post(URL, json=payload, timeout=REQUEST_TIMEOUT)
+            if response.status_code not in retry_statuses:
+                response.raise_for_status()
+                return response
+
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            last_error = exc
+            if attempt == CLASSIFICATION_MAX_RETRIES - 1:
+                break
+            time.sleep((1.5 ** attempt) + (attempt * 0.25))
+
+    if last_error:
+        raise last_error
+    raise RuntimeError("Classification request failed")
+
+
 def _classify_one(comment_text: str) -> tuple[str, str]:
-    response = session.post(URL, json=_build_comment_payload(comment_text), timeout=REQUEST_TIMEOUT)
-    response.raise_for_status()
+    response = _post_with_retries(_build_comment_payload(comment_text))
 
     raw_response = response.json()["choices"][0]["message"]["content"].strip()
     parsed = _extract_json(raw_response)
@@ -289,6 +365,79 @@ def _classify_one(comment_text: str) -> tuple[str, str]:
     if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
         return _normalize_label(str(parsed[0].get("label", "feedback"))), raw_response
     return "feedback", raw_response
+
+
+def _extract_batch_labels(parsed: Any, expected_ids: list[str]) -> list[str]:
+    items: Any
+    if isinstance(parsed, dict):
+        items = (
+            parsed.get("results")
+            or parsed.get("comments")
+            or parsed.get("classifications")
+            or parsed.get("labels")
+        )
+    else:
+        items = parsed
+
+    labels_by_id: dict[str, str] = {}
+    positional_labels: list[str] = []
+
+    if isinstance(items, dict):
+        for comment_id, label in items.items():
+            labels_by_id[str(comment_id)] = _normalize_label(str(label))
+    elif isinstance(items, list):
+        for item in items:
+            if isinstance(item, dict):
+                label = item.get("label") or item.get("classification") or item.get("category")
+                comment_id = item.get("id") or item.get("comment_id")
+                if comment_id is not None and label is not None:
+                    labels_by_id[str(comment_id)] = _normalize_label(str(label))
+                elif label is not None:
+                    positional_labels.append(_normalize_label(str(label)))
+            elif isinstance(item, str):
+                positional_labels.append(_normalize_label(item))
+
+    labels: list[str] = []
+    for index, comment_id in enumerate(expected_ids):
+        if comment_id in labels_by_id:
+            labels.append(labels_by_id[comment_id])
+        elif index < len(positional_labels):
+            labels.append(positional_labels[index])
+        else:
+            labels.append("feedback")
+    return labels
+
+
+def _classify_batch(comment_texts: list[str]) -> list[tuple[str, str]]:
+    if not comment_texts:
+        return []
+    if len(comment_texts) == 1:
+        return [_classify_one(comment_texts[0])]
+
+    response = _post_with_retries(_build_batch_payload(comment_texts))
+    raw_response = response.json()["choices"][0]["message"]["content"].strip()
+    parsed = _extract_json(raw_response)
+    expected_ids = [f"c{index}" for index in range(len(comment_texts))]
+    labels = _extract_batch_labels(parsed, expected_ids)
+    return [(label, raw_response) for label in labels]
+
+
+def _classify_batch_resilient(comment_texts: list[str]) -> list[tuple[str, str]]:
+    try:
+        return _classify_batch(comment_texts)
+    except Exception:
+        if len(comment_texts) <= 1:
+            raise
+
+        midpoint = len(comment_texts) // 2
+        return (
+            _classify_batch_resilient(comment_texts[:midpoint])
+            + _classify_batch_resilient(comment_texts[midpoint:])
+        )
+
+
+def _chunk(items: list[sqlite3.Row], size: int) -> list[list[sqlite3.Row]]:
+    return [items[index:index + size] for index in range(0, len(items), size)]
 
 
 def _prepare_run(conn: sqlite3.Connection) -> None:
@@ -320,6 +469,10 @@ def classify_comment(comment: str) -> str:
         return "feedback"
 
     with _connect() as conn:
+        cached = _get_cached_label(conn, comment)
+        if cached:
+            return cached[0]
+
         label, raw_response = _classify_one(comment)
         _save_cached_label(conn, comment, label, raw_response, "llm")
         conn.commit()
@@ -359,12 +512,41 @@ def classify_comments(
             """
         ).fetchall()
 
-        for done, row in enumerate(rows, start=1):
+        queued_rows: list[sqlite3.Row] = []
+        done = 0
+
+        for row in rows:
             text = str(row["comment_text"])
-            label, raw_response = _classify_one(text)
-            _save_comment_label(conn, row["comment_hash"], label, raw_response, "llm")
-            _save_cached_label(conn, text, label, raw_response, "llm")
+            cached = _get_cached_label(conn, text)
+            if not cached:
+                queued_rows.append(row)
+                continue
+
+            label, raw_response = cached
+            _save_comment_label(conn, row["comment_hash"], label, raw_response, "cache")
+            done += 1
+            message = f"Loaded cached classification {done}/{total} comments"
+            if progress_callback:
+                progress_callback(done, total, message)
+
+        conn.commit()
+
+        if queued_rows and progress_callback:
+            progress_callback(done, total, f"Queued {len(queued_rows)} uncached comments for batch classification")
+
+        for batch in _chunk(queued_rows, CLASSIFICATION_BATCH_SIZE):
+            texts = [str(row["comment_text"]) for row in batch]
+            batch_results = _classify_batch_resilient(texts)
+
+            for row, text, result in zip(batch, texts, batch_results):
+                label, raw_response = result
+                _save_comment_label(conn, row["comment_hash"], label, raw_response, "llm")
+                _save_cached_label(conn, text, label, raw_response, "llm")
+                done += 1
+
             conn.commit()
+            if CLASSIFICATION_BATCH_PAUSE > 0:
+                time.sleep(CLASSIFICATION_BATCH_PAUSE)
 
             message = f"Classified {done}/{total} comments"
             if progress_callback:

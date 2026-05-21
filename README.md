@@ -1,6 +1,7 @@
 # Grab YT Comments
 
-YouTube comment extraction and optional LLM classification with a React frontend and Python backend.
+This helps you read YouTube comments without drowning in the noise.
+It extracts comments from any video URL and classifies them locally with **LFM2.5-350M**, giving you a clear dashboard of what people are asking, praising, criticizing, joking about, or pushing back on.
 
 ## Project Structure
 
@@ -26,6 +27,29 @@ grab-yt-comments/
 `-- README.md
 ```
 
+## Prerequisite:
+
+<details>
+<summary><strong>Local LLM must be running</strong></summary>
+
+Classification depends on a local OpenAI-compatible LLM server. Before running this project, install and start **LFM2.5-350M** with `llama.cpp`.
+
+1. Install `llama.cpp`:
+
+```bash
+winget install llama.cpp
+```
+
+2. Start the model server:
+
+```bash
+llama-server -hf LiquidAI/LFM2.5-350M-GGUF:Q4_K_M
+```
+
+Once started, the server is available at `http://localhost:8080`.
+
+</details> ```
+
 ## Backend Setup
 
 From the repo root:
@@ -41,7 +65,7 @@ Create `backend/.env`:
 YOUTUBE_API_KEY=your_youtube_api_key_here
 ```
 
-Optional local LLM settings:
+Local LLM settings:
 
 ```text
 LOCAL_LLM_URL=http://127.0.0.1:8080/v1/chat/completions
