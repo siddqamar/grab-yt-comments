@@ -3,6 +3,8 @@
 This helps you read YouTube comments without drowning in the noise.
 It extracts comments from any video URL and classifies them locally with **LFM2.5-350M**, giving you a clear dashboard of what people are asking, praising, criticizing, joking about, or pushing back on.
 
+![Demo GIF](media/animation.gif)
+
 ## Project Structure
 
 ```text
