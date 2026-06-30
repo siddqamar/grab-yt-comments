@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { Comment, ClassificationStatus, AnalysisStats } from '../types';
 
 const configuredApiUrl = import.meta.env.VITE_API_URL;

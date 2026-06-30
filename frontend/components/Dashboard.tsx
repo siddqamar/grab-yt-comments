@@ -1,5 +1,5 @@
 import React from 'react';
-import { Comment, AnalysisStats, ClassificationStatus, ExportFormat } from '../types';
+import { Comment, AnalysisStats, ExportFormat } from '../types';
 import { Badge } from './ui/Badge';
 import { IconDownload, IconMessage, IconActivity, IconZap } from './Icons';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
