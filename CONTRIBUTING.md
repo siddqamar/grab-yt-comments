@@ -75,18 +75,24 @@ uv run python app.py
 
 ## Validation Checklist
 
-From `backend/` run:
+### Backend
+From the `backend/` directory (or repo root with uv):
 
 ```bash
 python -m py_compile app.py api.py scraper.py classifier.py
+uv run pytest tests/ -q
 ```
 
-If your change touches frontend behavior, also run:
-
+### Frontend
 ```bash
 cd frontend
+npm run typecheck
+npm run lint
+npm run test:run
 npm run build
 ```
+
+These checks (plus more) run automatically via GitHub Actions on every push and pull request.
 
 ## Pull Request Guidelines
 
