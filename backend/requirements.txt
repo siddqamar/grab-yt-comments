@@ -3,3 +3,8 @@ gradio>=4.0.0
 python-dotenv
 requests>=2.31.0
 uvicorn>=0.29.0
+
+# Testing (optional)
+pytest>=8.0.0
+pytest-mock>=3.14.0
+responses>=0.25.0

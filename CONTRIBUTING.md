@@ -66,6 +66,26 @@ cd backend
 uv run python app.py
 ```
 
+- Run tests (recommended before pushing):
+
+  **Backend**
+
+  ```bash
+  cd backend
+  uv run python -m py_compile app.py api.py scraper.py classifier.py
+  uv run pytest tests/ -q
+  ```
+
+  **Frontend**
+
+  ```bash
+  cd frontend
+  npm run typecheck
+  npm run lint
+  npm run test:run
+  npm run build
+  ```
+
 ## Making Changes
 
 1. Create a branch from `main`.
@@ -75,18 +95,27 @@ uv run python app.py
 
 ## Validation Checklist
 
-From `backend/` run:
+Run these before pushing to make sure everything is good (they are also enforced in CI).
+
+### Backend
 
 ```bash
-python -m py_compile app.py api.py scraper.py classifier.py
+cd backend
+uv run python -m py_compile app.py api.py scraper.py classifier.py
+uv run pytest tests/ -q
 ```
 
-If your change touches frontend behavior, also run:
+### Frontend
 
 ```bash
 cd frontend
+npm run typecheck
+npm run lint
+npm run test:run
 npm run build
 ```
+
+These checks (plus more) run automatically via GitHub Actions on every push and pull request.
 
 ## Pull Request Guidelines
 
