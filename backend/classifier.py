@@ -5,6 +5,7 @@ import re
 import sqlite3
 import threading
 import time
+from pathlib import Path
 from typing import Any, Callable
 
 import requests
@@ -14,7 +15,10 @@ model_request_lock = threading.Lock()
 
 MODEL_NAME = os.getenv("LOCAL_LLM_MODEL", "LiquidAI/LFM2.5-350M-GGUF:Q4_K_M")
 URL = os.getenv("LOCAL_LLM_URL", "http://127.0.0.1:8080/v1/chat/completions")
-DB_PATH = os.getenv("CLASSIFICATION_DB_PATH", ".classification_cache.sqlite3")
+DB_PATH = os.getenv(
+    "CLASSIFICATION_DB_PATH",
+    str(Path(__file__).parent / ".classification_cache.sqlite3"),
+)
 REQUEST_TIMEOUT = int(os.getenv("CLASSIFICATION_REQUEST_TIMEOUT", "30"))
 CLASSIFICATION_BATCH_SIZE = max(
     1,
@@ -228,7 +232,10 @@ def _normalize_label(raw_label: str) -> str:
         "scam": "spam",
         "bot": "spam",
     }
-    return aliases.get(cleaned, "feedback")
+    for key, label in aliases.items():
+        if key in cleaned:
+            return label
+    return "feedback"
 
 
 def _build_comment_payload(comment_text: str) -> dict[str, Any]:

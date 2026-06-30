@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
-    branches: [main, dev]
+    branches: [main]
 
 jobs:
   backend:
@@ -34,7 +34,7 @@ jobs:
 
       - name: Run py_compile (pre-finalization check)
         run: |
-          python -m py_compile app.py api.py scraper.py classifier.py
+          uv run python -m py_compile app.py api.py scraper.py classifier.py
 
       - name: Run backend tests
         run: |
