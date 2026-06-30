@@ -128,3 +128,22 @@ When classification is enabled, comments are classified with the local OpenAI-co
 - `spam`
 
 The backend stores scraped comments first, classifies each saved comment, writes labels back to SQLite, and returns the final result from the database.
+
+## Evaluation
+
+A dedicated `eval/` folder exists for measuring and improving classifier quality (critical for the small local model).
+
+- `eval/README.md` — quick start and workflow
+- `eval/EVAL_GUIDE.md` — authoritative label definitions + decision tree for human annotators
+- Scripts: `collect_candidates.py`, `interactive_label.py`, `run_eval.py`
+
+Typical flow (from repo root):
+
+```powershell
+python eval/scripts/collect_candidates.py --sample 120 --out eval/data/candidates.jsonl
+python eval/scripts/interactive_label.py --candidates eval/data/candidates.jsonl --gold eval/data/gold.jsonl
+python eval/scripts/run_eval.py --gold eval/data/gold.jsonl --force
+```
+
+See `eval/README.md` for full details. The golden dataset (`gold.jsonl`) lives under version control. All eval runs use an isolated cache so they never pollute production classification state.
+

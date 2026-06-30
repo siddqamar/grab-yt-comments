@@ -44,3 +44,8 @@ Thumbs.db
 # misc
 coverage/
 .cache/
+
+# Eval artifacts (candidates are intermediate; cache & results are large)
+eval/data/candidates*.jsonl
+eval/data/.eval_cache*
+eval/results/

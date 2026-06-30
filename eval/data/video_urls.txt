@@ -1,0 +1,9 @@
+# Add public YouTube video URLs here for future candidate collection.
+# One per line. Prefer videos with rich, varied audience comments.
+# These are examples only — replace/add with videos relevant to your use case.
+
+https://www.youtube.com/watch?v=dQw4w9wg3k
+# Add real ones below (tech talks, tutorials, etc.)
+
+# Example (replace):
+# https://www.youtube.com/watch?v=...  # "10 Lessons 12 Years in Tech..."

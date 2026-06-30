@@ -464,6 +464,36 @@ def _load_classified_comments(conn: sqlite3.Connection) -> list[dict[str, Any]]:
     return results
 
 
+def compute_cache_key(comment: str) -> str:
+    """Public helper: deterministic cache key for a comment + current model.
+    Useful for external tools (e.g. eval) that need to manage cache entries.
+    """
+    payload = json.dumps(
+        {"model": MODEL_NAME, "comment": comment.strip()},
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def invalidate_cache_for_texts(texts: list[str]) -> None:
+    """Remove cached classifications for the given texts (current MODEL_NAME).
+    Safe no-op if texts are empty. Intended primarily for evaluation runs.
+    """
+    if not texts:
+        return
+    with _connect() as conn:
+        keys = [compute_cache_key(t) for t in texts if t]
+        if not keys:
+            return
+        placeholders = ",".join("?" for _ in keys)
+        conn.execute(
+            f"DELETE FROM classification_cache WHERE comment_hash IN ({placeholders})",
+            keys,
+        )
+        conn.commit()
+
+
 def classify_comment(comment: str) -> str:
     if not comment or not isinstance(comment, str):
         return "feedback"
@@ -477,6 +507,27 @@ def classify_comment(comment: str) -> str:
         _save_cached_label(conn, comment, label, raw_response, "llm")
         conn.commit()
         return label
+
+
+def classify_comment_detailed(comment: str) -> dict[str, Any]:
+    """Classify a single comment and return richer result including raw LLM response.
+
+    Returns: {"label": str, "raw_response": str | None, "source": "llm" | "cache"}
+    This is additive and does not change behavior of classify_comment().
+    """
+    if not comment or not isinstance(comment, str):
+        return {"label": "feedback", "raw_response": None, "source": "none"}
+
+    with _connect() as conn:
+        cached = _get_cached_label(conn, comment)
+        if cached:
+            label, raw = cached
+            return {"label": label, "raw_response": raw, "source": "cache"}
+
+        label, raw_response = _classify_one(comment)
+        _save_cached_label(conn, comment, label, raw_response, "llm")
+        conn.commit()
+        return {"label": label, "raw_response": raw_response, "source": "llm"}
 
 
 def classify_comments(

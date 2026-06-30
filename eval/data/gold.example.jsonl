@@ -1,0 +1,10 @@
+{"id":"ex01","text":"Great video, thank you! This really helped me understand the topic.","gold_label":"appreciation","source":"example","labeled_at":"2026-06-30T00:00:00Z","labeler_notes":"Clear thanks + helped."}
+{"id":"ex02","text":"lol the face you made at 3:12 is priceless","gold_label":"humor","source":"example","labeled_at":"2026-06-30T00:00:00Z","labeler_notes":"Playful joke reaction."}
+{"id":"ex03","text":"Can you do a follow-up on how to actually implement step 3?","gold_label":"questions","source":"example","labeled_at":"2026-06-30T00:00:00Z","labeler_notes":"Direct request for more info."}
+{"id":"ex04","text":"This advice is unrealistic for people working in large enterprises.","gold_label":"criticism","source":"example","labeled_at":"2026-06-30T00:00:00Z","labeler_notes":"Negative judgment without personal story."}
+{"id":"ex05","text":"After switching careers twice I finally landed a role where these lessons actually applied and I got promoted within a year.","gold_label":"personal experience","source":"example","labeled_at":"2026-06-30T00:00:00Z","labeler_notes":"First-person outcome narrative."}
+{"id":"ex06","text":"You should add a section about handling non-technical stakeholders.","gold_label":"feedback","source":"example","labeled_at":"2026-06-30T00:00:00Z","labeler_notes":"Constructive suggestion."}
+{"id":"ex07","text":"Click here to claim your free iPhone 17 giveaway http://scam.example.com","gold_label":"spam","source":"example","labeled_at":"2026-06-30T00:00:00Z","labeler_notes":"Obvious unrelated promo/scam."}
+
+# Copy interesting lines from this file into gold.jsonl after you have labeled real data.
+# Delete or replace the example entries when your real gold set is ready.

@@ -81,6 +81,18 @@ From `backend/` run:
 python -m py_compile app.py api.py scraper.py classifier.py
 ```
 
+Eval scripts (when changed) can be checked from repo root:
+
+```bash
+python -c "
+import sys
+sys.path.insert(0, 'backend')
+import eval.metrics as m
+print('metrics ok')
+# scripts are runnable as modules but mainly exercised via CLI
+"
+```
+
 If your change touches frontend behavior, also run:
 
 ```bash
