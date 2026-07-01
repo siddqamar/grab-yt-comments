@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from classifier import LABELS, classify_comments
-from scraper import scrape_comments
+from scraper import extract_video_id, scrape_comments
 
 load_dotenv()
 
@@ -68,12 +68,19 @@ def _stats(comments: list[dict[str, Any]]) -> dict[str, int]:
 
 @app.post("/api/v1/comments")
 def get_comments(payload: CommentRequest) -> dict[str, Any]:
+    url = payload.url.strip()
+
+    try:
+        extract_video_id(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid YouTube URL: {exc}") from exc
+
     api_key = os.getenv("YOUTUBE_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="YOUTUBE_API_KEY environment variable not set")
 
     try:
-        title, comments = scrape_comments(api_key, payload.url.strip())
+        title, comments = scrape_comments(api_key, url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Invalid YouTube URL: {exc}") from exc
     except Exception as exc:
@@ -91,6 +98,6 @@ def get_comments(payload: CommentRequest) -> dict[str, Any]:
             "comments": [_frontend_comment(comment, index) for index, comment in enumerate(comments)],
             "stats": _stats(comments),
             "video_title": title,
-            "video_url": payload.url,
+            "video_url": url,
         },
     }
