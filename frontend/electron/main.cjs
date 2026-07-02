@@ -1,11 +1,12 @@
 const { app, BrowserWindow } = require('electron');
+const path = require('node:path');
 const { startBackendSidecar } = require('./backend-sidecar.cjs');
 
 const DEFAULT_RENDERER_URL = 'http://localhost:3000';
 const autoQuitAfterMs = Number(process.env.DESKTOP_AUTO_QUIT_AFTER_MS || 0);
 let backendSidecar;
 
-function createMainWindow() {
+function createMainWindow(apiBaseUrl) {
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 860,
@@ -16,6 +17,8 @@ function createMainWindow() {
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      preload: path.join(__dirname, 'preload.cjs'),
+      additionalArguments: [`--api-base-url=${apiBaseUrl}`],
       sandbox: true,
     },
   });
@@ -47,7 +50,7 @@ app.whenReady().then(async () => {
     return;
   }
 
-  createMainWindow();
+  createMainWindow(backendSidecar.url);
   if (Number.isFinite(autoQuitAfterMs) && autoQuitAfterMs > 0) {
     setTimeout(() => {
       stopBackendSidecar();

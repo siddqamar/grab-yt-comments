@@ -1,15 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchComments } from '../services/apiService';
+import { fetchComments, resolveApiUrl } from '../services/apiService';
 
 describe('apiService', () => {
   const originalFetch = global.fetch;
+  const originalDesktopConfig = window.desktopConfig;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    delete window.desktopConfig;
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    window.desktopConfig = originalDesktopConfig;
+  });
+
+  it('uses the Electron runtime API URL when provided', () => {
+    window.desktopConfig = { apiBaseUrl: 'http://127.0.0.1:8877' };
+
+    expect(resolveApiUrl()).toBe('http://127.0.0.1:8877');
+  });
+
+  it('falls back to the Vite API URL outside Electron', () => {
+    expect(resolveApiUrl()).toBe('http://localhost:8000');
   });
 
   it('throws error when url is empty', async () => {

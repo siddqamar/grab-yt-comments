@@ -2,10 +2,28 @@
 import { Comment, ClassificationStatus, AnalysisStats } from '../types';
 
 const configuredApiUrl = import.meta.env.VITE_API_URL;
-const API_URL =
-  configuredApiUrl && !configuredApiUrl.includes('REPLACE_WITH')
-    ? configuredApiUrl
-    : 'http://localhost:8000';
+const DEFAULT_API_URL = 'http://localhost:8000';
+
+declare global {
+  interface Window {
+    desktopConfig?: {
+      apiBaseUrl?: string;
+    };
+  }
+}
+
+export const resolveApiUrl = (): string => {
+  const desktopApiUrl = window.desktopConfig?.apiBaseUrl;
+  if (desktopApiUrl) {
+    return desktopApiUrl;
+  }
+
+  if (configuredApiUrl && !configuredApiUrl.includes('REPLACE_WITH')) {
+    return configuredApiUrl;
+  }
+
+  return DEFAULT_API_URL;
+};
 
 // Backend API response types
 interface BackendComment {
@@ -59,7 +77,7 @@ export const fetchComments = async (
   }
 
   try {
-    const response = await fetch(`${API_URL}/api/v1/comments`, {
+    const response = await fetch(`${resolveApiUrl()}/api/v1/comments`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -175,10 +193,11 @@ export const downloadData = (data: Comment[], format: 'JSON' | 'CSV') => {
  * @returns Promise with health check result
  */
 export const checkApiHealth = async (): Promise<boolean> => {
-  if (!API_URL) return false;
+  const apiUrl = resolveApiUrl();
+  if (!apiUrl) return false;
 
   try {
-    const response = await fetch(`${API_URL}/health`, {
+    const response = await fetch(`${apiUrl}/health`, {
       method: 'GET',
     });
     return response.ok;
