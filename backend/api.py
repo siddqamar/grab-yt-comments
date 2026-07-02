@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from classifier import LABELS, classify_comments
+from classifier import LABELS, classify_comments, get_model_readiness
 from scraper import extract_video_id, scrape_comments
 
 load_dotenv()
@@ -44,6 +44,35 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/v1/readiness")
+def readiness() -> dict[str, Any]:
+    api_key_configured = bool(os.getenv("YOUTUBE_API_KEY"))
+    model_readiness = get_model_readiness()
+
+    return {
+        "status": "success",
+        "data": {
+            "backend": {
+                "available": True,
+                "message": "Backend ready.",
+            },
+            "youtube": {
+                "configured": api_key_configured,
+                "message": (
+                    "YouTube API key detected."
+                    if api_key_configured
+                    else "YOUTUBE_API_KEY is missing. Set it before scraping comments."
+                ),
+            },
+            "classification": {
+                "available": bool(model_readiness["available"]),
+                "message": str(model_readiness["message"]),
+                "model": str(model_readiness["model"]),
+            },
+        },
+    }
+
+
 def _frontend_comment(comment: dict[str, Any], index: int) -> dict[str, Any]:
     label = comment.get("label")
     return {
@@ -66,6 +95,23 @@ def _stats(comments: list[dict[str, Any]]) -> dict[str, int]:
     return stats
 
 
+def _classification_meta(
+    *,
+    requested: bool,
+    applied: bool,
+    status: str,
+    message: str | None = None,
+) -> dict[str, Any]:
+    meta: dict[str, Any] = {
+        "requested": requested,
+        "applied": applied,
+        "status": status,
+    }
+    if message:
+        meta["message"] = message
+    return meta
+
+
 @app.post("/api/v1/comments")
 def get_comments(payload: CommentRequest) -> dict[str, Any]:
     url = payload.url.strip()
@@ -86,11 +132,38 @@ def get_comments(payload: CommentRequest) -> dict[str, Any]:
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Error scraping comments: {exc}") from exc
 
+    classification_meta = _classification_meta(
+        requested=payload.enable_classification,
+        applied=False,
+        status="disabled",
+    )
     if payload.enable_classification:
-        try:
-            comments = classify_comments(comments)
-        except Exception as exc:
-            raise HTTPException(status_code=502, detail=f"Error during classification: {exc}") from exc
+        model_readiness = get_model_readiness()
+        if not model_readiness["available"]:
+            classification_meta = _classification_meta(
+                requested=True,
+                applied=False,
+                status="unavailable",
+                message=str(model_readiness["message"]),
+            )
+        else:
+            try:
+                comments = classify_comments(comments)
+                classification_meta = _classification_meta(
+                    requested=True,
+                    applied=True,
+                    status="applied",
+                )
+            except Exception:
+                classification_meta = _classification_meta(
+                    requested=True,
+                    applied=False,
+                    status="failed",
+                    message=(
+                        "Classification is currently unavailable. "
+                        "Comments were scraped without AI labels."
+                    ),
+                )
 
     return {
         "status": "success",
@@ -99,5 +172,8 @@ def get_comments(payload: CommentRequest) -> dict[str, Any]:
             "stats": _stats(comments),
             "video_title": title,
             "video_url": url,
+        },
+        "meta": {
+            "classification": classification_meta,
         },
     }

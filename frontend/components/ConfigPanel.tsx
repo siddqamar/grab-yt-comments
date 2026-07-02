@@ -8,6 +8,8 @@ interface ConfigPanelProps {
   exportFormat: ExportFormat;
   setExportFormat: (val: ExportFormat) => void;
   disabled?: boolean;
+  classificationDisabled?: boolean;
+  classificationHint?: string;
 }
 
 const ConfigPanel: React.FC<ConfigPanelProps> = ({
@@ -15,7 +17,9 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
   setEnableClassification,
   exportFormat,
   setExportFormat,
-  disabled
+  disabled,
+  classificationDisabled = false,
+  classificationHint = 'Classify comments using Python backend',
 }) => {
   return (
     <div className="flex flex-col md:flex-row gap-6 w-full max-w-2xl mx-auto mt-8 p-6 border border-subtle bg-surface/50 rounded-xl backdrop-blur-sm">
@@ -32,13 +36,13 @@ const ConfigPanel: React.FC<ConfigPanelProps> = ({
             className="sr-only"
             checked={enableClassification}
             onChange={(e) => setEnableClassification(e.target.checked)}
-            disabled={disabled}
+            disabled={disabled || classificationDisabled}
           />
           <div className="flex-1">
             <span className={`block font-bold ${enableClassification ? 'text-acid' : 'text-gray-300'}`}>
               Comment Classification
             </span>
-            <span className="text-xs text-gray-500">Classify comments using Python backend</span>
+            <span className="text-xs text-gray-500">{classificationHint}</span>
           </div>
           <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${enableClassification ? 'border-acid bg-acid' : 'border-gray-600'}`}>
              {enableClassification && <div className="w-2 h-2 rounded-full bg-black" />}

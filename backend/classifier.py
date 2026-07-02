@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 import requests
 
@@ -26,6 +27,9 @@ CLASSIFICATION_BATCH_SIZE = max(
 )
 CLASSIFICATION_MAX_RETRIES = max(1, int(os.getenv("CLASSIFICATION_MAX_RETRIES", "3")))
 CLASSIFICATION_BATCH_PAUSE = float(os.getenv("CLASSIFICATION_BATCH_PAUSE", "0.25"))
+CLASSIFICATION_READINESS_TIMEOUT = float(
+    os.getenv("CLASSIFICATION_READINESS_TIMEOUT", "2")
+)
 
 LABELS = (
     "appreciation",
@@ -37,6 +41,52 @@ LABELS = (
     "spam",
 )
 ProgressCallback = Callable[[int, int, str], None]
+
+
+def _model_server_target() -> str:
+    parsed = urlparse(URL)
+    if parsed.scheme and parsed.netloc:
+        return f"{parsed.scheme}://{parsed.netloc}"
+    return URL
+
+
+def _model_probe_urls() -> list[str]:
+    parsed = urlparse(URL)
+    if not parsed.scheme or not parsed.netloc:
+        return [URL]
+
+    base_url = f"{parsed.scheme}://{parsed.netloc}"
+    candidates = [
+        f"{base_url}/v1/models",
+        f"{base_url}/health",
+        URL,
+    ]
+    seen: set[str] = set()
+    return [candidate for candidate in candidates if not (candidate in seen or seen.add(candidate))]
+
+
+def get_model_readiness() -> dict[str, Any]:
+    for probe_url in _model_probe_urls():
+        try:
+            response = session.get(probe_url, timeout=CLASSIFICATION_READINESS_TIMEOUT)
+        except requests.RequestException:
+            continue
+
+        if response.status_code < 500:
+            return {
+                "available": True,
+                "message": "Classification model server is reachable.",
+                "model": MODEL_NAME,
+            }
+
+    return {
+        "available": False,
+        "message": (
+            f"Classification model server is unavailable at {_model_server_target()}. "
+            "Start the local model server or update LOCAL_LLM_URL."
+        ),
+        "model": MODEL_NAME,
+    }
 
 
 def _connect() -> sqlite3.Connection:
