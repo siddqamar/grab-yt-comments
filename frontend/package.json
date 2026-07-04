@@ -3,9 +3,14 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
+    "desktop:dev": "electron .",
     "build": "vite build",
+    "build:renderer": "vite build",
+    "build:backend": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ..\\backend\\build-desktop-backend.ps1",
+    "dist:win": "npm run build:renderer && npm run build:backend && electron-builder --win nsis",
     "preview": "vite preview",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
@@ -14,29 +19,64 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "lucide-react": "^0.561.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "lucide-react": "^0.561.0",
     "recharts": "^3.6.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.0.0",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.1",
     "@types/node": "^22.14.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "eslint": "^9.0.0",
-    "@eslint/js": "^9.0.0",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-react-refresh": "^0.4.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "electron": "^43.0.0",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "eslint-plugin-react-refresh": "^0.4.0",
     "globals": "^15.0.0",
     "jsdom": "^25.0.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
     "vitest": "^2.1.0"
+  },
+  "build": {
+    "appId": "dev.to.grabytcomments.desktop",
+    "productName": "GrabComments",
+    "directories": {
+      "output": "release-desktop"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../backend/dist/grab-yt-comments-api.exe",
+        "to": "backend/grab-yt-comments-api.exe"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "GrabComments-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "overrides": {
     "vite": "^6.2.0"

@@ -43,3 +43,18 @@ export interface ProcessingState {
   error?: string;
   progress?: number;
 }
+
+export interface UserNotice {
+  level: 'warning' | 'error';
+  message: string;
+}
+
+export interface AppReadiness {
+  backendAvailable: boolean;
+  backendMessage: string;
+  youtubeConfigured: boolean;
+  youtubeMessage: string;
+  classificationAvailable: boolean;
+  classificationMessage: string;
+  classificationModel: string;
+}

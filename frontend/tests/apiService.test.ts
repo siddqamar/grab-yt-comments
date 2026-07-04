@@ -1,15 +1,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { fetchComments } from '../services/apiService';
+import { fetchComments, fetchReadiness, resolveApiUrl } from '../services/apiService';
 
 describe('apiService', () => {
   const originalFetch = global.fetch;
+  const originalDesktopConfig = window.desktopConfig;
 
   beforeEach(() => {
     vi.clearAllMocks();
+    delete window.desktopConfig;
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    window.desktopConfig = originalDesktopConfig;
+  });
+
+  it('uses the Electron runtime API URL when provided', () => {
+    window.desktopConfig = { apiBaseUrl: 'http://127.0.0.1:8877' };
+
+    expect(resolveApiUrl()).toBe('http://127.0.0.1:8877');
+  });
+
+  it('falls back to the Vite API URL outside Electron', () => {
+    expect(resolveApiUrl()).toBe('http://localhost:8000');
   });
 
   it('throws error when url is empty', async () => {
@@ -50,5 +63,72 @@ describe('apiService', () => {
 
     await expect(fetchComments('https://youtube.com/watch?v=123', false))
       .rejects.toThrow('Network error: Unable to connect to the FastAPI backend.');
+  });
+
+  it('returns readiness status from the backend', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: 'success',
+        data: {
+          backend: { available: true, message: 'Backend ready.' },
+          youtube: { configured: true, message: 'YouTube API key detected.' },
+          classification: {
+            available: false,
+            message: 'Classification model server is unavailable.',
+            model: 'test-model',
+          },
+        },
+      }),
+    } as Response);
+
+    await expect(fetchReadiness()).resolves.toEqual({
+      backendAvailable: true,
+      backendMessage: 'Backend ready.',
+      youtubeConfigured: true,
+      youtubeMessage: 'YouTube API key detected.',
+      classificationAvailable: false,
+      classificationMessage: 'Classification model server is unavailable.',
+      classificationModel: 'test-model',
+    });
+  });
+
+  it('returns a warning notice when classification is skipped', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: 'success',
+        data: {
+          comments: [{ id: 'c1', author: 'User1', text: 'Nice!', timestamp: '2024', likes: 10 }],
+          stats: {
+            total: 1,
+            appreciation: 0,
+            humor: 0,
+            questions: 0,
+            criticism: 0,
+            'personal experience': 0,
+            feedback: 0,
+            spam: 0,
+          },
+          video_title: 'Test Video',
+          video_url: 'https://youtube.com/watch?v=123',
+        },
+        meta: {
+          classification: {
+            requested: true,
+            applied: false,
+            status: 'unavailable',
+            message: 'Classification model server is unavailable.',
+          },
+        },
+      }),
+    } as Response);
+
+    await expect(fetchComments('https://youtube.com/watch?v=123', true)).resolves.toMatchObject({
+      notice: {
+        level: 'warning',
+        message: 'Classification model server is unavailable.',
+      },
+    });
   });
 });

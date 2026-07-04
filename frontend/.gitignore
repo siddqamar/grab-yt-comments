@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+release/
+release-desktop/
+release-desktop-pass2/
 *.local
 node_modules/
 .env
