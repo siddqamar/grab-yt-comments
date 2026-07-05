@@ -31,10 +31,15 @@ grab-yt-comments/
 
 ## Prerequisite:
 
-<details>
-<summary><strong>Local LLM must be running</strong></summary>
+Desktop usage is Windows-first.
 
-Classification depends on a local OpenAI-compatible LLM server. Before running this project, install and start **LFM2.5-350M** with `llama.cpp`.
+Scraping requires a YouTube API key.
+Classification is optional and only works when a local OpenAI-compatible model server is already running.
+
+<details>
+<summary><strong>Optional local LLM for classification</strong></summary>
+
+If you want AI labels in the desktop app, install and start **LFM2.5-350M** with `llama.cpp`.
 
 1. Install `llama.cpp`:
 
@@ -50,26 +55,39 @@ llama-server -hf LiquidAI/LFM2.5-350M-GGUF:Q4_K_M
 
 Once started, the server is available at `http://localhost:8080`.
 
-</details> ```
+</details>
 
-## Backend Setup
+## Desktop Setup
 
-From the repo root:
+Set your YouTube API key in your Windows user environment before launching the installed desktop app:
+
+```powershell
+[Environment]::SetEnvironmentVariable("YOUTUBE_API_KEY", "your_youtube_api_key_here", "User")
+```
+
+Optional classification settings:
+
+```powershell
+[Environment]::SetEnvironmentVariable("LOCAL_LLM_URL", "http://127.0.0.1:8080/v1/chat/completions", "User")
+[Environment]::SetEnvironmentVariable("LOCAL_LLM_MODEL", "LiquidAI/LFM2.5-350M-GGUF:Q4_K_M", "User")
+[Environment]::SetEnvironmentVariable("CLASSIFICATION_REQUEST_TIMEOUT", "30", "User")
+```
+
+Restart the desktop app after changing environment variables so the packaged backend picks them up.
+
+If you are running the desktop app from source instead of the installer:
 
 ```bash
 cd backend
 uv sync
+cd ../frontend
+npm install
 ```
 
-Create `backend/.env`:
+For source-based desktop development, you can still use `backend/.env`:
 
 ```text
 YOUTUBE_API_KEY=your_youtube_api_key_here
-```
-
-Local LLM settings:
-
-```text
 LOCAL_LLM_URL=http://127.0.0.1:8080/v1/chat/completions
 LOCAL_LLM_MODEL=LiquidAI/LFM2.5-350M-GGUF:Q4_K_M
 CLASSIFICATION_REQUEST_TIMEOUT=30
@@ -77,38 +95,39 @@ CLASSIFICATION_REQUEST_TIMEOUT=30
 
 ## Run The App
 
-Start the FastAPI backend:
+For the packaged desktop app:
 
-```bash
-cd backend
-uv run python -m uvicorn api:app --host 127.0.0.1 --port 8000 --reload
-```
-
-In a second terminal, start the React frontend:
+1. Build the Windows installer:
 
 ```bash
 cd frontend
-npm install
+npm run dist:win
+```
+
+2. Install `frontend/release-desktop/GrabComments-Setup-0.0.0.exe`.
+3. Launch **GrabComments**. Electron opens the desktop window and starts the bundled FastAPI backend sidecar automatically.
+
+For desktop development from source:
+
+1. Start the React renderer:
+
+```bash
+cd frontend
 npm run dev
 ```
 
-Open the frontend:
+2. In a second terminal, launch Electron:
 
-```text
-http://127.0.0.1:3000
+```bash
+cd frontend
+npm run desktop:dev
 ```
 
-The frontend calls the backend at:
-
-```text
-http://localhost:8000/api/v1/comments
-```
-
-You can override that by setting `VITE_API_URL` in `frontend/.env`.
+The desktop shell connects to its backend automatically. In development it starts FastAPI from `backend/` on `http://127.0.0.1:8000` unless you override the desktop backend environment variables.
 
 ## Existing Gradio App
 
-The original Gradio workflow is still available:
+The original Gradio workflow is still available and remains separate from the desktop boot path:
 
 ```bash
 cd backend
