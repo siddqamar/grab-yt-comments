@@ -6,6 +6,21 @@ const DEFAULT_RENDERER_URL = 'http://localhost:3000';
 const autoQuitAfterMs = Number(process.env.DESKTOP_AUTO_QUIT_AFTER_MS || 0);
 let backendSidecar;
 
+function rendererEntry() {
+  if (process.env.DESKTOP_RENDERER_URL) {
+    return { kind: 'url', value: process.env.DESKTOP_RENDERER_URL };
+  }
+
+  if (app.isPackaged) {
+    return {
+      kind: 'file',
+      value: path.join(__dirname, '..', 'dist', 'index.html'),
+    };
+  }
+
+  return { kind: 'url', value: DEFAULT_RENDERER_URL };
+}
+
 function createMainWindow(apiBaseUrl) {
   const mainWindow = new BrowserWindow({
     width: 1280,
@@ -26,8 +41,13 @@ function createMainWindow(apiBaseUrl) {
   mainWindow.on('close', stopBackendSidecar);
   mainWindow.on('closed', stopBackendSidecar);
 
-  const rendererUrl = process.env.DESKTOP_RENDERER_URL || DEFAULT_RENDERER_URL;
-  void mainWindow.loadURL(rendererUrl);
+  const entry = rendererEntry();
+  if (entry.kind === 'file') {
+    void mainWindow.loadFile(entry.value);
+    return;
+  }
+
+  void mainWindow.loadURL(entry.value);
 }
 
 function stopBackendSidecar() {
@@ -60,7 +80,7 @@ app.whenReady().then(async () => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createMainWindow();
+      createMainWindow(backendSidecar?.url);
     }
   });
 });

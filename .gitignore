@@ -32,6 +32,10 @@ dist/
 build/
 .next/
 out/
+release/
+release-desktop/
+.codex/
+.agents/
 
 # OS
 .DS_Store

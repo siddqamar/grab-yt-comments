@@ -1,3 +1,4 @@
+const { app } = require('electron');
 const { execFileSync, spawn } = require('node:child_process');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -5,8 +6,38 @@ const path = require('node:path');
 
 const DEFAULT_BACKEND_HOST = '127.0.0.1';
 const DEFAULT_BACKEND_PORT = '8000';
+const PACKAGED_BACKEND_NAME = 'grab-yt-comments-api.exe';
 const HEALTH_TIMEOUT_MS = 15000;
 const HEALTH_INTERVAL_MS = 500;
+const WINDOWS_STOP_TIMEOUT_MS = 5000;
+const WINDOWS_STOP_RETRY_MS = 250;
+const stopSleepSignal = new Int32Array(new SharedArrayBuffer(4));
+
+function windowsSystemExecutable(name) {
+  const systemRoot = process.env.SystemRoot || 'C:\\Windows';
+  return path.join(systemRoot, 'System32', `${name}.exe`);
+}
+
+function windowsPowerShellExecutable() {
+  const systemRoot = process.env.SystemRoot || 'C:\\Windows';
+  return path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+}
+
+function sleepMs(timeoutMs) {
+  Atomics.wait(stopSleepSignal, 0, 0, timeoutMs);
+}
+
+function backendRuntimeEnv() {
+  const env = { ...process.env };
+  if (!env.CLASSIFICATION_DB_PATH && app) {
+    env.CLASSIFICATION_DB_PATH = path.join(app.getPath('userData'), 'classification-cache.sqlite3');
+  }
+  return env;
+}
+
+function packagedBackendExecutable() {
+  return path.join(process.resourcesPath, 'backend', PACKAGED_BACKEND_NAME);
+}
 
 function backendConfig() {
   const host = process.env.DESKTOP_BACKEND_HOST || DEFAULT_BACKEND_HOST;
@@ -14,13 +45,31 @@ function backendConfig() {
   const repoRoot = path.resolve(__dirname, '..', '..');
   const backendCwd = process.env.DESKTOP_BACKEND_CWD || path.join(repoRoot, 'backend');
   const venvPython = path.join(backendCwd, '.venv', 'Scripts', 'python.exe');
+  const packagedExecutable = packagedBackendExecutable();
+  const explicitCommand = process.env.DESKTOP_BACKEND_COMMAND;
+
+  if (!explicitCommand && app.isPackaged) {
+    if (!fs.existsSync(packagedExecutable)) {
+      throw new Error(`Packaged backend executable not found at ${packagedExecutable}`);
+    }
+
+    return {
+      host,
+      port,
+      url: `http://${host}:${port}`,
+      cwd: path.dirname(packagedExecutable),
+      command: packagedExecutable,
+      args: ['--host', host, '--port', port],
+      env: backendRuntimeEnv(),
+    };
+  }
 
   return {
     host,
     port,
     url: `http://${host}:${port}`,
     cwd: backendCwd,
-    command: process.env.DESKTOP_BACKEND_COMMAND || (fs.existsSync(venvPython) ? venvPython : 'python'),
+    command: explicitCommand || (fs.existsSync(venvPython) ? venvPython : 'python'),
     args: [
       '-m',
       'uvicorn',
@@ -30,6 +79,7 @@ function backendConfig() {
       '--port',
       port,
     ],
+    env: backendRuntimeEnv(),
   };
 }
 
@@ -69,7 +119,7 @@ function listeningPids(port) {
   }
 
   try {
-    const output = execFileSync('netstat', ['-ano'], { encoding: 'utf8' });
+    const output = execFileSync(windowsSystemExecutable('netstat'), ['-ano'], { encoding: 'utf8' });
     return output
       .split(/\r?\n/)
       .map((line) => line.trim().split(/\s+/))
@@ -83,9 +133,30 @@ function listeningPids(port) {
 
 function killWindowsProcessTree(pid) {
   try {
-    execFileSync('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore' });
+    execFileSync(
+      windowsPowerShellExecutable(),
+      ['-NoProfile', '-NonInteractive', '-Command', `Stop-Process -Id ${pid} -Force`],
+      { stdio: 'ignore' }
+    );
   } catch {
     // The process may have already exited between detection and shutdown.
+  }
+}
+
+function stopWindowsListeners(port) {
+  const deadline = Date.now() + WINDOWS_STOP_TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const pids = listeningPids(port);
+    if (pids.length === 0) {
+      return;
+    }
+
+    for (const pid of pids) {
+      killWindowsProcessTree(pid);
+    }
+
+    sleepMs(WINDOWS_STOP_RETRY_MS);
   }
 }
 
@@ -98,7 +169,7 @@ function startBackendSidecar() {
 
   const child = spawn(config.command, config.args, {
     cwd: config.cwd,
-    env: process.env,
+    env: config.env,
     stdio: 'ignore',
     windowsHide: true,
   });
@@ -119,9 +190,7 @@ function startBackendSidecar() {
           killWindowsProcessTree(child.pid);
         }
 
-        for (const pid of listeningPids(config.port)) {
-          killWindowsProcessTree(pid);
-        }
+        stopWindowsListeners(config.port);
       } else {
         if (!child.killed && child.exitCode === null) {
           child.kill();
@@ -133,6 +202,7 @@ function startBackendSidecar() {
 
 module.exports = {
   backendConfig,
+  packagedBackendExecutable,
   startBackendSidecar,
   waitForHealth,
 };
