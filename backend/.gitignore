@@ -5,3 +5,6 @@ __pycache__/
 *.csv
 *.json
 outputs/
+.pytest_cache/
+build/
+dist/
